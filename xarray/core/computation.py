@@ -294,6 +294,9 @@ def build_output_coords_and_indexes(
             if not preferred_has_attrs:
                 combine_attrs_for_coords = "drop"
             else:
+                # Use "override" for coordinate merging to take coordinates from the 
+                # preferred source, but do NOT apply the callable to coordinate attributes.
+                # The callable has done its job in determining which coordinates to prefer.
                 combine_attrs_for_coords = "override"
                 # reorder coords_list to prefer primary non-boolean data argument
                 if len(coords_list) > 1:
@@ -373,13 +376,16 @@ def apply_dataarray_vfunc(
         first_obj = _first_of_type(args, DataArray)
         name = first_obj.name
     
-    # Avoid applying a callable keep_attrs to coordinate merging.
-    # Coordinates should always be preserved by default ("override"),
-    # not affected by the data-level keep_attrs logic.
-    combine_attrs_for_coords = "override"
+    # For coordinate merging, we need special handling when keep_attrs is callable.
+    # The callable is designed for data attributes and should not be applied to
+    # coordinate attributes. However, we still want to apply the preference logic
+    # (e.g., preferring x's coordinates when keep_attrs=True in where).
+    # So we pass the callable to trigger the reordering logic, but ensure it
+    # gets converted to "override" before the actual coordinate merge happens.
+    combine_attrs_for_function = keep_attrs
     
     result_coords, result_indexes = build_output_coords_and_indexes(
-        args, signature, exclude_dims, combine_attrs=combine_attrs_for_coords
+        args, signature, exclude_dims, combine_attrs=combine_attrs_for_function
     )
 
     data_vars = [getattr(a, "variable", a) for a in args]
