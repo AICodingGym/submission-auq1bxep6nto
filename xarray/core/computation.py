@@ -1925,7 +1925,19 @@ def where(cond, x, y, keep_attrs=None):
     if keep_attrs is True:
         # keep the attributes of x, the second parameter, by default to
         # be consistent with the `where` method of `DataArray` and `Dataset`
-        keep_attrs = lambda attrs, context: getattr(x, "attrs", {})
+        # For Datasets, we need to return x's attrs from the attrs list,
+        # not the Dataset-level attrs. But for scalars, we need to return empty.
+        x_attrs_original = getattr(x, "attrs", {})
+        def _keep_attrs_where(attrs, context):
+            # If x has attrs at the source (DataArray or Dataset), 
+            # select x's attrs from the attrs list passed to the callable
+            if x_attrs_original and len(attrs) > 1:
+                # attrs list: [cond_attrs, x_attrs, y_attrs]
+                return attrs[1]  
+            else:
+                # x is a scalar or has no attrs - use original behavior
+                return x_attrs_original
+        keep_attrs = _keep_attrs_where
 
     # alignment for three arguments is complicated, so don't support it yet
     return apply_ufunc(
