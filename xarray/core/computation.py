@@ -253,37 +253,47 @@ def build_output_coords_and_indexes(
     coords_list = _get_coords_list(args)
 
     # If combine_attrs is a callable (e.g., produced by `keep_attrs=True` in
-    # `where`), we want coordinate attrs to prefer the primary data argument
-    # (typically `x`), not the condition or other inputs. Find the first
-    # non-boolean-like argument to be the preferred source and move its
-    # coordinates to the front of `coords_list` so that an "override" strategy
-    # picks them first.
-    if callable(combine_attrs) and len(coords_list) > 1:
-        preferred_arg_idx = None
-        for i, arg in enumerate(args):
-            try:
-                dtype = getattr(arg, "dtype", None)
-            except Exception:
-                dtype = None
-            if dtype is not None:
-                try:
-                    if not np.issubdtype(dtype, np.bool_):
-                        preferred_arg_idx = i
-                        break
-                except Exception:
-                    pass
-        # fallback to second argument if nothing better found (common for where)
-        if preferred_arg_idx is None and len(args) > 1:
-            preferred_arg_idx = 1
+    # `where`), determine whether any data attrs will be kept. We call the
+    # callable with the sequence of input attrs; if it returns an empty
+    # dict, we should drop coordinate attrs entirely. If it returns non-empty
+    # attrs, prefer coordinates from the primary (non-boolean) data argument
+    # so that an "override" merge picks them.
+    if callable(combine_attrs) and len(coords_list) > 0:
+        try:
+            input_attrs_list = [getattr(a, "attrs", {}) for a in args if hasattr(a, "attrs")]
+            data_keep = combine_attrs(input_attrs_list, context=None)
+        except Exception:
+            data_keep = None
 
-        if preferred_arg_idx is not None:
-            # map arg indices to coords_list indices
-            arg_indices_with_coords = [i for i, arg in enumerate(args) if hasattr(arg, "coords")]
-            if preferred_arg_idx in arg_indices_with_coords:
-                coords_list_idx = arg_indices_with_coords.index(preferred_arg_idx)
-                if coords_list_idx != 0:
-                    preferred = coords_list.pop(coords_list_idx)
-                    coords_list.insert(0, preferred)
+        if not data_keep:
+            combine_attrs_for_coords = "drop"
+        else:
+            combine_attrs_for_coords = "override"
+            # reorder coords_list to prefer primary non-boolean data argument
+            if len(coords_list) > 1:
+                preferred_arg_idx = None
+                for i, arg in enumerate(args):
+                    try:
+                        dtype = getattr(arg, "dtype", None)
+                    except Exception:
+                        dtype = None
+                    if dtype is not None:
+                        try:
+                            if not np.issubdtype(dtype, np.bool_):
+                                preferred_arg_idx = i
+                                break
+                        except Exception:
+                            pass
+                if preferred_arg_idx is None and len(args) > 1:
+                    preferred_arg_idx = 1
+
+                if preferred_arg_idx is not None:
+                    arg_indices_with_coords = [i for i, arg in enumerate(args) if hasattr(arg, "coords")]
+                    if preferred_arg_idx in arg_indices_with_coords:
+                        coords_list_idx = arg_indices_with_coords.index(preferred_arg_idx)
+                        if coords_list_idx != 0:
+                            preferred = coords_list.pop(coords_list_idx)
+                            coords_list.insert(0, preferred)
 
     if len(coords_list) == 1 and not exclude_dims:
         # we can skip the expensive merge
