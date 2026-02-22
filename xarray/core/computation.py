@@ -252,6 +252,36 @@ def build_output_coords_and_indexes(
     """
     coords_list = _get_coords_list(args)
 
+    # If combine_attrs is a callable (e.g., produced by `keep_attrs=True` in
+    # `where`), we want coordinate attrs to prefer the primary data argument
+    # (typically `x`), not the condition or other inputs. Find the first
+    # non-boolean-like argument to be the preferred source and move its
+    # coordinates to the front of `coords_list` so that an "override" strategy
+    # picks them first.
+    if callable(combine_attrs) and len(coords_list) > 1:
+        preferred_idx = None
+        for i, arg in enumerate(args):
+            try:
+                dtype = getattr(arg, "dtype", None)
+            except Exception:
+                dtype = None
+            if dtype is not None:
+                # prefer non-boolean dtypes
+                try:
+                    if not np.issubdtype(dtype, np.bool_):
+                        preferred_idx = i
+                        break
+                except Exception:
+                    pass
+        # fallback to second argument if nothing better found (common for where)
+        if preferred_idx is None and len(args) > 1:
+            preferred_idx = 1
+
+        if preferred_idx is not None and preferred_idx < len(coords_list):
+            # move the preferred coords to the front
+            preferred = coords_list.pop(preferred_idx)
+            coords_list.insert(0, preferred)
+
     if len(coords_list) == 1 and not exclude_dims:
         # we can skip the expensive merge
         (unpacked_coords,) = coords_list
