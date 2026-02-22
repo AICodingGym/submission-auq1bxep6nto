@@ -1935,22 +1935,23 @@ def where(cond, x, y, keep_attrs=None):
         def _keep_attrs_where(attrs, context):
             # If x has attrs at the source (DataArray or Dataset), 
             # find and return x's attrs from the attrs list.
-            # The attrs list includes all objects with attrs, which may or may not
-            # include cond depending on whether it's a DataArray/Dataset.
+            # The attrs list includes attrs from objects with attrs.
+            from .dataset import Dataset
+            
             if x_attrs_original and len(attrs) > 0:
-                # Find x's attrs in the list by looking for the one that matches
-                # x_attrs_original. This handles cases where cond is a scalar
-                # (and thus not in the attrs list) vs. when it's a DataArray.
+                # Try to find x's attrs in the list by matching identity or equality
                 for attr in attrs:
                     if attr is x_attrs_original or attr == x_attrs_original:
                         return attr
-                # If we can't find it by identity or equality, assume it's still
-                # at the expected index, but be safe with the index
-                if len(attrs) > 1:
-                    return attrs[1]  # cond, x, y case
-                elif len(attrs) > 0:
-                    return attrs[0]  # x, y case (cond is scalar)
-            # x is a scalar or has no attrs - return empty dict
+                
+                # If not found by value, x might be a Dataset where the identity changed
+                # Try to use positional fallback, but only if x is confirmed to be a Dataset
+                if isinstance(x, Dataset) and len(attrs) > 1:
+                    # When x is a Dataset, attrs[1] should be x's attrs (after cond)
+                    return attrs[1]
+                # If x is a DataArray, its attrs aren't Dataset-level, so return empty
+            
+            # x is a scalar or has no attrs, or is a DataArray mixed with Datasets
             return {}
         keep_attrs = _keep_attrs_where
 
