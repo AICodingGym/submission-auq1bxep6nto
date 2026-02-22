@@ -376,16 +376,19 @@ def apply_dataarray_vfunc(
         first_obj = _first_of_type(args, DataArray)
         name = first_obj.name
     
-    # For coordinate merging, we need special handling when keep_attrs is callable.
-    # The callable is designed for data attributes and should not be applied to
-    # coordinate attributes. However, we still want to apply the preference logic
-    # (e.g., preferring x's coordinates when keep_attrs=True in where).
-    # So we pass the callable to trigger the reordering logic, but ensure it
-    # gets converted to "override" before the actual coordinate merge happens.
-    combine_attrs_for_function = keep_attrs
+    # When keep_attrs is a callable (e.g., from where's _keep_attrs_where),
+    # we need special handling for coordinate attributes. The callable is designed
+    # for data attributes and should determine data attribute handling, but
+    # coordinates should always be preserved with "override" strategy.
+    if callable(keep_attrs):
+        # Use "override" for coordinates to preserve their attributes
+        combine_attrs_for_coords = "override"
+    else:
+        # Use the same strategy for coordinates as for data attributes
+        combine_attrs_for_coords = keep_attrs
     
     result_coords, result_indexes = build_output_coords_and_indexes(
-        args, signature, exclude_dims, combine_attrs=combine_attrs_for_function
+        args, signature, exclude_dims, combine_attrs=combine_attrs_for_coords
     )
 
     data_vars = [getattr(a, "variable", a) for a in args]
@@ -1942,13 +1945,24 @@ def where(cond, x, y, keep_attrs=None):
         x_attrs_original = getattr(x, "attrs", {})
         def _keep_attrs_where(attrs, context):
             # If x has attrs at the source (DataArray or Dataset), 
-            # select x's attrs from the attrs list passed to the callable
-            if x_attrs_original and len(attrs) > 1:
-                # attrs list: [cond_attrs, x_attrs, y_attrs]
-                return attrs[1]  
-            else:
-                # x is a scalar or has no attrs - use original behavior
-                return x_attrs_original
+            # find and return x's attrs from the attrs list.
+            # The attrs list includes all objects with attrs, which may or may not
+            # include cond depending on whether it's a DataArray/Dataset.
+            if x_attrs_original and len(attrs) > 0:
+                # Find x's attrs in the list by looking for the one that matches
+                # x_attrs_original. This handles cases where cond is a scalar
+                # (and thus not in the attrs list) vs. when it's a DataArray.
+                for attr in attrs:
+                    if attr is x_attrs_original or attr == x_attrs_original:
+                        return attr
+                # If we can't find it by identity or equality, assume it's still
+                # at the expected index, but be safe with the index
+                if len(attrs) > 1:
+                    return attrs[1]  # cond, x, y case
+                elif len(attrs) > 0:
+                    return attrs[0]  # x, y case (cond is scalar)
+            # x is a scalar or has no attrs - return empty dict
+            return {}
         keep_attrs = _keep_attrs_where
 
     # alignment for three arguments is complicated, so don't support it yet
