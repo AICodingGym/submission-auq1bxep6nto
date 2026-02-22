@@ -372,8 +372,14 @@ def apply_dataarray_vfunc(
     else:
         first_obj = _first_of_type(args, DataArray)
         name = first_obj.name
+    
+    # Avoid applying a callable keep_attrs to coordinate merging.
+    # Coordinates should always be preserved by default ("override"),
+    # not affected by the data-level keep_attrs logic.
+    combine_attrs_for_coords = "override"
+    
     result_coords, result_indexes = build_output_coords_and_indexes(
-        args, signature, exclude_dims, combine_attrs=keep_attrs
+        args, signature, exclude_dims, combine_attrs=combine_attrs_for_coords
     )
 
     data_vars = [getattr(a, "variable", a) for a in args]
