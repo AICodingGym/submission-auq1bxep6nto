@@ -317,6 +317,14 @@ def build_output_coords_and_indexes(
             coords_list, exclude_dims=exclude_dims, combine_attrs=combine_attrs_for_coords
         )
 
+    # If we decided to drop coordinate attrs (e.g., when data attrs are
+    # being dropped), strip them from the coordinate variables.
+    if combine_attrs_for_coords == "drop":
+        merged_vars = {
+            name: var.copy(deep=False, data=var.data) if hasattr(var, "attrs") else var
+            for name, var in merged_vars.items()
+        }
+
     output_coords = []
     output_indexes = []
     for output_dims in signature.output_core_dims:
