@@ -268,7 +268,33 @@ def build_output_coords_and_indexes(
         if not data_keep:
             combine_attrs_for_coords = "drop"
         else:
-            combine_attrs_for_coords = "override"
+            # If the preferred primary data argument doesn't actually have
+            # any attrs itself (e.g., it's a scalar), we should not apply
+            # those attrs to coordinates — treat as drop.
+            preferred_has_attrs = False
+            preferred_arg_idx = None
+            for i, arg in enumerate(args):
+                try:
+                    dtype = getattr(arg, "dtype", None)
+                except Exception:
+                    dtype = None
+                if dtype is not None:
+                    try:
+                        if not np.issubdtype(dtype, np.bool_):
+                            preferred_arg_idx = i
+                            break
+                    except Exception:
+                        pass
+            if preferred_arg_idx is None and len(args) > 1:
+                preferred_arg_idx = 1
+            if preferred_arg_idx is not None and preferred_arg_idx < len(args):
+                preferred_arg = args[preferred_arg_idx]
+                preferred_has_attrs = bool(getattr(preferred_arg, "attrs", {}))
+
+            if not preferred_has_attrs:
+                combine_attrs_for_coords = "drop"
+            else:
+                combine_attrs_for_coords = "override"
             # reorder coords_list to prefer primary non-boolean data argument
             if len(coords_list) > 1:
                 preferred_arg_idx = None
