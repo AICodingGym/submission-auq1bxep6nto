@@ -295,31 +295,16 @@ def build_output_coords_and_indexes(
                 combine_attrs_for_coords = "drop"
             else:
                 combine_attrs_for_coords = "override"
-            # reorder coords_list to prefer primary non-boolean data argument
-            if len(coords_list) > 1:
-                preferred_arg_idx = None
-                for i, arg in enumerate(args):
-                    try:
-                        dtype = getattr(arg, "dtype", None)
-                    except Exception:
-                        dtype = None
-                    if dtype is not None:
-                        try:
-                            if not np.issubdtype(dtype, np.bool_):
-                                preferred_arg_idx = i
-                                break
-                        except Exception:
-                            pass
-                if preferred_arg_idx is None and len(args) > 1:
-                    preferred_arg_idx = 1
-
-                if preferred_arg_idx is not None:
+                # reorder coords_list to prefer primary non-boolean data argument
+                if len(coords_list) > 1:
                     arg_indices_with_coords = [i for i, arg in enumerate(args) if hasattr(arg, "coords")]
                     if preferred_arg_idx in arg_indices_with_coords:
                         coords_list_idx = arg_indices_with_coords.index(preferred_arg_idx)
                         if coords_list_idx != 0:
                             preferred = coords_list.pop(coords_list_idx)
                             coords_list.insert(0, preferred)
+    else:
+        combine_attrs_for_coords = combine_attrs
 
     if len(coords_list) == 1 and not exclude_dims:
         # we can skip the expensive merge
@@ -327,16 +312,7 @@ def build_output_coords_and_indexes(
         merged_vars = dict(unpacked_coords.variables)
         merged_indexes = dict(unpacked_coords.xindexes)
     else:
-        # If combine_attrs is a callable (for example the callable produced
-        # by `keep_attrs=True` in `where`), it is intended to select attrs
-        # for the *data* variable(s). We should not apply such a callable to
-        # coordinate merging because that can cause coordinate attrs to be
-        # overwritten by data-variable attrs. Use a conservative "override"
-        # strategy for coordinates when a callable is provided.
-        combine_attrs_for_coords = (
-            combine_attrs if not callable(combine_attrs) else "override"
-        )
-
+        # combine_attrs_for_coords set above; use it for coordinate merging
         merged_vars, merged_indexes = merge_coordinates_without_align(
             coords_list, exclude_dims=exclude_dims, combine_attrs=combine_attrs_for_coords
         )
