@@ -320,10 +320,12 @@ def build_output_coords_and_indexes(
     # If we decided to drop coordinate attrs (e.g., when data attrs are
     # being dropped), strip them from the coordinate variables.
     if combine_attrs_for_coords == "drop":
-        merged_vars = {
-            name: var.copy(deep=False, data=var.data) if hasattr(var, "attrs") else var
-            for name, var in merged_vars.items()
-        }
+        new_vars = {}
+        for name, var in merged_vars.items():
+            new_var = var.copy(deep=False)
+            new_var.attrs = {}
+            new_vars[name] = new_var
+        merged_vars = new_vars
 
     output_coords = []
     output_indexes = []
