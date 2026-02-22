@@ -259,28 +259,31 @@ def build_output_coords_and_indexes(
     # coordinates to the front of `coords_list` so that an "override" strategy
     # picks them first.
     if callable(combine_attrs) and len(coords_list) > 1:
-        preferred_idx = None
+        preferred_arg_idx = None
         for i, arg in enumerate(args):
             try:
                 dtype = getattr(arg, "dtype", None)
             except Exception:
                 dtype = None
             if dtype is not None:
-                # prefer non-boolean dtypes
                 try:
                     if not np.issubdtype(dtype, np.bool_):
-                        preferred_idx = i
+                        preferred_arg_idx = i
                         break
                 except Exception:
                     pass
         # fallback to second argument if nothing better found (common for where)
-        if preferred_idx is None and len(args) > 1:
-            preferred_idx = 1
+        if preferred_arg_idx is None and len(args) > 1:
+            preferred_arg_idx = 1
 
-        if preferred_idx is not None and preferred_idx < len(coords_list):
-            # move the preferred coords to the front
-            preferred = coords_list.pop(preferred_idx)
-            coords_list.insert(0, preferred)
+        if preferred_arg_idx is not None:
+            # map arg indices to coords_list indices
+            arg_indices_with_coords = [i for i, arg in enumerate(args) if hasattr(arg, "coords")]
+            if preferred_arg_idx in arg_indices_with_coords:
+                coords_list_idx = arg_indices_with_coords.index(preferred_arg_idx)
+                if coords_list_idx != 0:
+                    preferred = coords_list.pop(coords_list_idx)
+                    coords_list.insert(0, preferred)
 
     if len(coords_list) == 1 and not exclude_dims:
         # we can skip the expensive merge
