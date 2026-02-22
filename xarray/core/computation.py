@@ -258,8 +258,18 @@ def build_output_coords_and_indexes(
         merged_vars = dict(unpacked_coords.variables)
         merged_indexes = dict(unpacked_coords.xindexes)
     else:
+        # If combine_attrs is a callable (for example the callable produced
+        # by `keep_attrs=True` in `where`), it is intended to select attrs
+        # for the *data* variable(s). We should not apply such a callable to
+        # coordinate merging because that can cause coordinate attrs to be
+        # overwritten by data-variable attrs. Use a conservative "override"
+        # strategy for coordinates when a callable is provided.
+        combine_attrs_for_coords = (
+            combine_attrs if not callable(combine_attrs) else "override"
+        )
+
         merged_vars, merged_indexes = merge_coordinates_without_align(
-            coords_list, exclude_dims=exclude_dims, combine_attrs=combine_attrs
+            coords_list, exclude_dims=exclude_dims, combine_attrs=combine_attrs_for_coords
         )
 
     output_coords = []
